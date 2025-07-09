@@ -14,4 +14,10 @@ include = ["src/**/*", "LICENSE", "README.md"]
 [dependencies]
 color-eyre = "0.6.5"
 crossterm = "0.29.0"
+directories = "6.0.0"
 ratatui = "0.29.0"
+rust-norg = { git = "https://github.com/nvim-neorg/rust-norg", version = "0.1.0" }
+serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4"] }
+dirs = "5.0"

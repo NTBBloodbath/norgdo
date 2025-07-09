@@ -1,16 +1,26 @@
+mod app;
+mod parser;
+mod task;
+mod task_manager;
+mod ui;
+
+use app::App;
 use color_eyre::Result;
-use crossterm::event::{self, Event};
 use ratatui::{DefaultTerminal, Frame};
 
-fn render(frame: &mut Frame) {
-    frame.render_widget("Hello world", frame.area());
+fn render(app: &mut App, frame: &mut Frame) {
+    ui::render(app, frame);
 }
 
 fn run(mut terminal: DefaultTerminal) -> Result<()> {
-    loop {
-        terminal.draw(render)?;
-        if matches!(event::read()?, Event::Key(_)) {
+    let mut app = App::new()?;
 
+    loop {
+        terminal.draw(|frame| render(&mut app, frame))?;
+
+        app.handle_events()?;
+
+        if app.should_quit {
             break Ok(());
         }
     }
