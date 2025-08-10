@@ -160,8 +160,9 @@ fn render_single_kanban_column(
                 .title(format!("{} ({})", category.to_string(), tasks.len()))
                 .border_style(border_style),
         )
-        .highlight_style(Style::default().bg(Color::DarkGray))
-        .highlight_symbol("► ");
+        .highlight_spacing(ratatui::widgets::HighlightSpacing::Never)
+        .highlight_style(Style::default().bg(Color::Black))
+        .highlight_symbol("» ");
 
     let state = list_states.get_mut(&category).unwrap();
     frame.render_stateful_widget(list, area, state);
@@ -245,8 +246,9 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
                     .borders(Borders::ALL)
                     .title(format!("Todo Items ({})", task.todos.len())),
             )
-            .highlight_style(Style::default().bg(Color::DarkGray))
-            .highlight_symbol("► ");
+            .highlight_spacing(ratatui::widgets::HighlightSpacing::Never)
+            .highlight_style(Style::default().bg(Color::Black))
+            .highlight_symbol("» ");
         frame.render_stateful_widget(todos_list, chunks[2], &mut app.todo_list_state);
 
         // Help
