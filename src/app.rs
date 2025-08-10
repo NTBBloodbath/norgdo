@@ -87,7 +87,11 @@ impl App {
                 self.mode = AppMode::Search;
                 self.search_query.clear();
             }
-            KeyCode::Left => self.focused_pane = FocusedPane::YetToBeDone,
+            KeyCode::Left => match self.focused_pane {
+                FocusedPane::YetToBeDone => {}
+                FocusedPane::InProgress => self.focused_pane = FocusedPane::YetToBeDone,
+                FocusedPane::Completed => self.focused_pane = FocusedPane::InProgress,
+            },
             KeyCode::Right => match self.focused_pane {
                 FocusedPane::YetToBeDone => self.focused_pane = FocusedPane::InProgress,
                 FocusedPane::InProgress => self.focused_pane = FocusedPane::Completed,
