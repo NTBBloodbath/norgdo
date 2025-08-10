@@ -2,9 +2,7 @@ use crate::task::KanbanCategory;
 use crate::task_manager::TaskManager;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use ratatui::{
-    widgets::{ListState},
-};
+use ratatui::widgets::ListState;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,6 +29,7 @@ pub struct App {
     pub search_query: String,
     pub new_task_title: String,
     pub error_message: Option<String>,
+    pub todo_list_state: ListState, // For navigating todos in task detail view
 }
 
 impl App {
@@ -51,6 +50,7 @@ impl App {
             search_query: String::new(),
             new_task_title: String::new(),
             error_message: None,
+            todo_list_state: ListState::default(),
         })
     }
 
@@ -68,7 +68,7 @@ impl App {
                 AppMode::TaskDetail(task_id) => {
                     let task_id = task_id.clone();
                     self.handle_task_detail_input(key.code, &task_id)?;
-                },
+                }
                 AppMode::CreateTask => self.handle_create_task_input(key.code)?,
                 AppMode::Search => self.handle_search_input(key.code)?,
             }
@@ -82,24 +82,24 @@ impl App {
             KeyCode::Char('n') => {
                 self.mode = AppMode::CreateTask;
                 self.new_task_title.clear();
-            },
+            }
             KeyCode::Char('/') => {
                 self.mode = AppMode::Search;
                 self.search_query.clear();
-            },
+            }
             KeyCode::Left => self.focused_pane = FocusedPane::YetToBeDone,
             KeyCode::Right => match self.focused_pane {
                 FocusedPane::YetToBeDone => self.focused_pane = FocusedPane::InProgress,
                 FocusedPane::InProgress => self.focused_pane = FocusedPane::Completed,
-                FocusedPane::Completed => {},
+                FocusedPane::Completed => {}
             },
             KeyCode::Up => self.move_selection(-1),
             KeyCode::Down => self.move_selection(1),
             KeyCode::Enter => self.open_selected_task()?,
             KeyCode::Char('r') => {
                 self.task_manager.load_tasks()?;
-            },
-            _ => {},
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -110,9 +110,47 @@ impl App {
             KeyCode::Char('q') => self.mode = AppMode::Dashboard,
             KeyCode::Char('s') => {
                 self.task_manager.save_task(task_id)?;
-            },
-            // TODO: Add more task detail navigation and editing
-            _ => {},
+            }
+            KeyCode::Up => {
+                // Navigate up in todo list
+                if let Some(task) = self
+                    .task_manager
+                    .get_tasks()
+                    .iter()
+                    .find(|t| t.id == task_id)
+                {
+                    let todo_count = task.todos.len();
+                    if todo_count > 0 {
+                        let current = self.todo_list_state.selected().unwrap_or(0);
+                        let new_index = current.saturating_sub(1);
+                        self.todo_list_state.select(Some(new_index));
+                    }
+                }
+            }
+            KeyCode::Down => {
+                // Navigate down in todo list
+                if let Some(task) = self
+                    .task_manager
+                    .get_tasks()
+                    .iter()
+                    .find(|t| t.id == task_id)
+                {
+                    let todo_count = task.todos.len();
+                    if todo_count > 0 {
+                        let current = self.todo_list_state.selected().unwrap_or(0);
+                        let new_index = (current + 1).min(todo_count - 1);
+                        self.todo_list_state.select(Some(new_index));
+                    }
+                }
+            }
+            KeyCode::Char(' ') => {
+                // Toggle todo state
+                if let Some(selected_index) = self.todo_list_state.selected() {
+                    self.task_manager
+                        .toggle_todo_state(task_id, selected_index)?;
+                }
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -126,20 +164,20 @@ impl App {
                         Ok(_) => {
                             self.mode = AppMode::Dashboard;
                             self.new_task_title.clear();
-                        },
+                        }
                         Err(e) => {
                             self.error_message = Some(format!("Failed to create task: {}", e));
                         }
                     }
                 }
-            },
+            }
             KeyCode::Backspace => {
                 self.new_task_title.pop();
-            },
+            }
             KeyCode::Char(c) => {
                 self.new_task_title.push(c);
-            },
-            _ => {},
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -150,14 +188,14 @@ impl App {
             KeyCode::Enter => {
                 // TODO: Implement search results view
                 self.mode = AppMode::Dashboard;
-            },
+            }
             KeyCode::Backspace => {
                 self.search_query.pop();
-            },
+            }
             KeyCode::Char(c) => {
                 self.search_query.push(c);
-            },
-            _ => {},
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -170,7 +208,10 @@ impl App {
         };
 
         let tasks_by_category = self.task_manager.get_tasks_by_category();
-        let tasks_in_category = tasks_by_category.get(&current_category).map(|v| v.len()).unwrap_or(0);
+        let tasks_in_category = tasks_by_category
+            .get(&current_category)
+            .map(|v| v.len())
+            .unwrap_or(0);
 
         if tasks_in_category == 0 {
             return;
@@ -201,6 +242,8 @@ impl App {
                 if let Some(selected) = state.selected() {
                     if let Some(task) = tasks.get(selected) {
                         self.mode = AppMode::TaskDetail(task.id.clone());
+                        // Reset todo list state when entering task detail
+                        self.todo_list_state.select(Some(0));
                     }
                 }
             }

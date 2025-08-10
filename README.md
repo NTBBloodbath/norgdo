@@ -4,6 +4,10 @@ Get your tasks done using Norg, straight from your terminal.
 
 > Norgdo is a terminal-based task manager for the Norg markup format, built with Rust and ratatui.
 
+> [!IMPORTANT]
+>
+> This software is in alpha status. While it works, it is uncomplete and might have bugs. Please report bugs back to me if you spot any.
+
 ## Features
 
 - **Kanban-style interface** with three columns: Yet to be Done, In Progress, and Completed
@@ -73,8 +77,8 @@ This is a sample project to demonstrate norgdo functionality.
 - (-) Write documentation
 - (!) Fix critical bug
 - ( ) Write comprehensive tests
-  - ( ) Unit tests
-  - ( ) Integration tests
+-- ( ) Unit tests
+-- ( ) Integration tests
 - (_) Remove deprecated features
 ```
 
@@ -116,7 +120,7 @@ Tasks are automatically categorized based on their TODO states:
 - [x] Task file parsing
 - [x] Navigation and task selection
 - [ ] Task editing interface
-- [ ] TODO state toggling
+- [x] TODO state toggling
 - [ ] Task relationships (dependencies, related tasks)
 - [ ] Due date support
 - [ ] Search and filtering

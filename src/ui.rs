@@ -2,13 +2,16 @@ use crate::app::{App, AppMode, FocusedPane};
 use crate::task::{KanbanCategory, TodoState};
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph, Clear, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 
 pub fn render(app: &mut App, frame: &mut Frame) {
-    match &app.mode {
+    match &app.mode.clone() {
         AppMode::Dashboard => render_dashboard(app, frame),
-        AppMode::TaskDetail(task_id) => render_task_detail(app, frame, task_id),
+        AppMode::TaskDetail(task_id) => {
+            let task_id = task_id.clone();
+            render_task_detail(app, frame, &task_id);
+        }
         AppMode::CreateTask => render_create_task(app, frame),
         AppMode::Search => render_search(app, frame),
     }
@@ -31,7 +34,11 @@ fn render_dashboard(app: &mut App, frame: &mut Frame) {
 
     // Title
     let title = Paragraph::new("NorgDo - Terminal Task Manager")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(title, chunks[0]);
@@ -105,26 +112,29 @@ fn render_single_kanban_column(
             let todo_counts = task.todo_counts();
             let total_todos = task.todos.len();
 
-            let title_line = Line::from(vec![
-                Span::styled(&task.title, Style::default().add_modifier(Modifier::BOLD)),
-            ]);
+            let title_line = Line::from(vec![Span::styled(
+                &task.title,
+                Style::default().add_modifier(Modifier::BOLD),
+            )]);
 
             let progress_line = if total_todos > 0 {
-                Line::from(vec![
-                    Span::styled(
-                        format!("Progress: {:.0}% ({}/{})", completion,
-                               todo_counts.get(&TodoState::Done).unwrap_or(&0), total_todos),
-                        Style::default().fg(Color::Gray),
+                Line::from(vec![Span::styled(
+                    format!(
+                        "Progress: {:.0}% ({}/{})",
+                        completion,
+                        todo_counts.get(&TodoState::Done).unwrap_or(&0),
+                        total_todos
                     ),
-                ])
+                    Style::default().fg(Color::Gray),
+                )])
             } else {
-                Line::from(vec![
-                    Span::styled("No todos", Style::default().fg(Color::Gray)),
-                ])
+                Line::from(vec![Span::styled(
+                    "No todos",
+                    Style::default().fg(Color::Gray),
+                )])
             };
 
-            ListItem::new(vec![title_line, progress_line])
-                .style(Style::default().fg(Color::White))
+            ListItem::new(vec![title_line, progress_line]).style(Style::default().fg(Color::White))
         })
         .collect();
 
@@ -148,69 +158,13 @@ fn render_single_kanban_column(
     frame.render_stateful_widget(list, area, state);
 }
 
-fn render_kanban_column(
-    app: &mut App,
-    frame: &mut Frame,
-    area: Rect,
-    category: KanbanCategory,
-    tasks_by_category: &std::collections::HashMap<KanbanCategory, Vec<&crate::task::Task>>,
-    is_focused: bool,
-) {
-    let empty_vec = vec![];
-    let tasks = tasks_by_category.get(&category).unwrap_or(&empty_vec);
-
-    let items: Vec<ListItem> = tasks
+fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
+    if let Some(task) = app
+        .task_manager
+        .get_tasks()
         .iter()
-        .map(|task| {
-            let completion = task.completion_percentage();
-            let todo_counts = task.todo_counts();
-            let total_todos = task.todos.len();
-
-            let title_line = Line::from(vec![
-                Span::styled(&task.title, Style::default().add_modifier(Modifier::BOLD)),
-            ]);
-
-            let progress_line = if total_todos > 0 {
-                Line::from(vec![
-                    Span::styled(
-                        format!("Progress: {:.0}% ({}/{})", completion,
-                               todo_counts.get(&TodoState::Done).unwrap_or(&0), total_todos),
-                        Style::default().fg(Color::Gray),
-                    ),
-                ])
-            } else {
-                Line::from(vec![
-                    Span::styled("No todos", Style::default().fg(Color::Gray)),
-                ])
-            };
-
-            ListItem::new(vec![title_line, progress_line])
-                .style(Style::default().fg(Color::White))
-        })
-        .collect();
-
-    let border_style = if is_focused {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default().fg(Color::White)
-    };
-
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!("{} ({})", category.to_string(), tasks.len()))
-                .border_style(border_style),
-        )
-        .highlight_style(Style::default().bg(Color::DarkGray))
-        .highlight_symbol("► ");
-
-    let state = app.list_states.get_mut(&category).unwrap();
-    frame.render_stateful_widget(list, area, state);
-}
-
-fn render_task_detail(app: &App, frame: &mut Frame, task_id: &str) {
-    if let Some(task) = app.task_manager.get_tasks().iter().find(|t| t.id == task_id) {
+        .find(|t| t.id == task_id)
+    {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -223,8 +177,8 @@ fn render_task_detail(app: &App, frame: &mut Frame, task_id: &str) {
 
         // Title
         let title = Paragraph::new(task.title.clone())
-              .wrap(Wrap { trim: true })
-              .block(Block::default().borders(Borders::ALL).title("Task"));
+            .wrap(Wrap { trim: true })
+            .block(Block::default().borders(Borders::ALL).title("Task"));
         frame.render_widget(title, chunks[0]);
 
         // Description
@@ -278,19 +232,22 @@ fn render_task_detail(app: &App, frame: &mut Frame, task_id: &str) {
                 Block::default()
                     .borders(Borders::ALL)
                     .title(format!("Todo Items ({})", task.todos.len())),
-            );
-        frame.render_widget(todos_list, chunks[2]);
+            )
+            .highlight_style(Style::default().bg(Color::DarkGray))
+            .highlight_symbol("► ");
+        frame.render_stateful_widget(todos_list, chunks[2], &mut app.todo_list_state);
 
         // Help
-        let help = Paragraph::new("Navigation: Esc/q back to dashboard, s save task")
-            .style(Style::default().fg(Color::Gray))
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL).title("Help"));
+        let help =
+            Paragraph::new("Navigation: Esc/q back, ↑↓ select todo, Space toggle state, s save")
+                .style(Style::default().fg(Color::Gray))
+                .alignment(Alignment::Center)
+                .block(Block::default().borders(Borders::ALL).title("Help"));
         frame.render_widget(help, chunks[3]);
     }
 }
 
-fn render_create_task(app: &App, frame: &mut Frame) {
+fn render_create_task(app: &mut App, frame: &mut Frame) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -301,7 +258,11 @@ fn render_create_task(app: &App, frame: &mut Frame) {
         .split(frame.area());
 
     let title = Paragraph::new("Create New Task")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(title, chunks[0]);
@@ -317,7 +278,7 @@ fn render_create_task(app: &App, frame: &mut Frame) {
     frame.render_widget(help, chunks[2]);
 }
 
-fn render_search(app: &App, frame: &mut Frame) {
+fn render_search(app: &mut App, frame: &mut Frame) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -328,7 +289,11 @@ fn render_search(app: &App, frame: &mut Frame) {
         .split(frame.area());
 
     let title = Paragraph::new("Search Tasks")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(title, chunks[0]);
@@ -352,12 +317,11 @@ fn render_search(app: &App, frame: &mut Frame) {
         })
         .collect();
 
-    let results_list = List::new(result_items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!("Results ({})", search_results.len())),
-        );
+    let results_list = List::new(result_items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!("Results ({})", search_results.len())),
+    );
     frame.render_widget(results_list, chunks[2]);
 }
 
