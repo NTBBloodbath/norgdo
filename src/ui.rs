@@ -86,7 +86,7 @@ fn render_dashboard(app: &mut App, frame: &mut Frame) {
     );
 
     // Help text
-    let help_text = "Navigation: ←→ switch columns, ↑↓ select task, Enter open task, n new task, / search, r refresh, q quit";
+    let help_text = "Navigation: Left/Right switch columns | Up/Down select task | Enter open task | n new task | / search | r refresh | q quit";
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
@@ -118,9 +118,18 @@ fn render_single_kanban_column(
             )]);
 
             let progress_line = if total_todos > 0 {
+                // Create visual progress bar with block characters
+                let bar_width = 20; // Total width of progress bar
+                let filled_width = ((completion / 100.0) * bar_width as f64) as usize;
+                let empty_width = bar_width - filled_width;
+
+                let progress_bar =
+                    format!("{}{}", "█".repeat(filled_width), "░".repeat(empty_width));
+
                 Line::from(vec![Span::styled(
                     format!(
-                        "Progress: {:.0}% ({}/{})",
+                        "{} {:.0}% ({}/{})",
+                        progress_bar,
                         completion,
                         todo_counts.get(&TodoState::Done).unwrap_or(&0),
                         total_todos
@@ -211,7 +220,10 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
                     TodoState::Cancelled => Color::Red,
                     TodoState::Urgent => Color::Yellow,
                     TodoState::Pending => Color::Blue,
-                    _ => Color::White,
+                    TodoState::Uncertain => Color::Magenta,
+                    TodoState::OnHold => Color::Cyan,
+                    TodoState::Recurring => Color::LightYellow,
+                    TodoState::Undone => Color::White,
                 };
 
                 ListItem::new(Line::from(vec![
@@ -238,11 +250,12 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
         frame.render_stateful_widget(todos_list, chunks[2], &mut app.todo_list_state);
 
         // Help
-        let help =
-            Paragraph::new("Navigation: Esc/q back, ↑↓ select todo, Space toggle state, s save")
-                .style(Style::default().fg(Color::Gray))
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL).title("Help"));
+        let help = Paragraph::new(
+            "Navigation: Esc/q back | Up/Down select todo | Space toggle state | s save",
+        )
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL).title("Help"));
         frame.render_widget(help, chunks[3]);
     }
 }

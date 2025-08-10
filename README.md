@@ -48,6 +48,13 @@ cargo run
 - **r** Refresh task list from disk
 - **q** Quit the application
 
+### Enhanced Navigation (Task Detail View)
+
+- **↑↓** Navigate between TODO items within a task
+- **Space** Toggle TODO state (cycles through Undone → Pending → Done)
+- **s** Save changes to the task file
+- **Esc/q** Return to main dashboard
+
 ### Task File Format
 
 Norgdo uses the Norg markup format for task files. Tasks are stored as `.norg` files in `~/.local/share/norgdo/` (or `$XDG_DATA_HOME/norgdo`).
@@ -102,8 +109,11 @@ Tasks are automatically categorized based on their TODO states:
 
 1. Select a task and press `Enter` to view details
 2. See task title, description, and all TODO items with their states
-3. View completion progress and todo counts
-4. Press `Esc` or `q` to return to the main dashboard
+3. **Navigate TODOs**: Use `Up/Down` arrows to select specific TODO items
+4. **Toggle TODO states**: Press `Space` to cycle through states (Undone → Pending → Done → Undone)
+5. **Save changes**: Press `s` to save TODO state changes to the file
+6. View completion progress and todo counts
+7. Press `Esc` or `q` to return to the main dashboard
 
 ## File Structure
 
@@ -119,8 +129,10 @@ Tasks are automatically categorized based on their TODO states:
 - [x] Basic kanban interface
 - [x] Task file parsing
 - [x] Navigation and task selection
-- [ ] Task editing interface
+- [x] Task editing interface
 - [x] TODO state toggling
+- [x] Visual progress bars
+- [x] Enhanced TODO navigation in detail view
 - [ ] Task relationships (dependencies, related tasks)
 - [ ] Due date support
 - [ ] Search and filtering
