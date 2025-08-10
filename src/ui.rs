@@ -213,7 +213,10 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
                     TodoState::Cancelled => "✗",
                     TodoState::Pending => "○",
                     TodoState::Urgent => "!",
-                    _ => "□",
+                    TodoState::OnHold => "⏸︎",
+                    TodoState::Uncertain => "?",
+                    TodoState::Recurring => "↻",
+                    TodoState::Undone => "□",
                 };
 
                 let color = match todo.state {
