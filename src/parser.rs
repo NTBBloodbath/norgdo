@@ -1,7 +1,9 @@
-// TODO: Refactor this parser to use the rust-norg library once compatibility issues are resolved
-// see https://github.com/nvim-neorg/rust-norg/pull/23
 use crate::task::{Task, TodoItem, TodoState};
 use color_eyre::Result;
+use rust_norg::{
+    DetachedModifierExtension, NestableDetachedModifier, NorgAST, NorgASTFlat, ParagraphSegment,
+    ParagraphSegmentToken, TodoStatus, parse_tree,
+};
 use std::fs;
 use std::path::Path;
 
@@ -11,120 +13,190 @@ impl NorgParser {
     pub fn parse_task_file(file_path: &Path) -> Result<Task> {
         let content = fs::read_to_string(file_path)?;
 
-        // For now, we'll skip the rust-norg parser since it has compatibility issues
-        // and directly parse the content ourselves
+        // Parse file
+        let ast = parse_tree(&content)
+            .map_err(|e| color_eyre::eyre::eyre!("Failed to parse Norg file: {:?}", e))?;
 
         // Extract title from the first heading
-        let title = Self::extract_title(&content);
+        let title = Self::extract_title_from_ast(&ast);
         let mut task = Task::new(title, file_path.to_path_buf());
 
-        // Extract description (content before first todo list)
-        task.description = Self::extract_description(&content);
-
-        // Parse todo items
-        task.todos = Self::extract_todos(&content)?;
+        // Extract description and todos from AST
+        let (description, todos) = Self::extract_content_from_ast(&ast)?;
+        task.description = description;
+        task.todos = todos;
 
         Ok(task)
     }
 
-    fn extract_title(content: &str) -> String {
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with('*') {
-                // Remove leading asterisks and whitespace
-                let title = trimmed.trim_start_matches('*').trim();
-                if !title.is_empty() {
-                    return title.to_string();
-                }
+    fn extract_title_from_ast(ast: &[NorgAST]) -> String {
+        for node in ast {
+            if let NorgAST::Heading { title, .. } = node {
+                return Self::paragraph_to_string(title);
             }
         }
         "Untitled Task".to_string()
     }
 
-    fn extract_description(content: &str) -> String {
-        let mut description_lines = Vec::new();
-        let mut in_description = false;
-        let mut found_title = false;
-
-        for line in content.lines() {
-            let trimmed = line.trim();
-
-            // Skip title line
-            if !found_title && trimmed.starts_with('*') {
-                found_title = true;
-                continue;
-            }
-
-            // Stop at first todo item
-            if Self::is_todo_line(trimmed) {
-                break;
-            }
-
-            if found_title {
-                if trimmed.is_empty() && !in_description {
-                    continue; // Skip empty lines before description
-                }
-                in_description = true;
-                description_lines.push(line);
-            }
-        }
-
-        description_lines.join("\n").trim().to_string()
-    }
-
-    fn extract_todos(content: &str) -> Result<Vec<TodoItem>> {
+    fn extract_content_from_ast(ast: &[NorgAST]) -> Result<(String, Vec<TodoItem>)> {
+        let mut description_parts = Vec::new();
         let mut todos = Vec::new();
         let mut todo_id_counter = 0;
+        let mut found_heading = false;
+        let mut in_description = true;
 
-        for (line_number, line) in content.lines().enumerate() {
-            if let Some(todo) = Self::parse_todo_line(line, line_number + 1)? {
-                let mut todo = todo;
-                todo.id = format!("todo_{}", todo_id_counter);
-                todo_id_counter += 1;
-                todos.push(todo);
+        for node in ast {
+            match node {
+                NorgAST::Heading { title, content, .. } => {
+                    found_heading = true;
+                    in_description = true;
+
+                    // Extract title text for description
+                    let title_text = Self::paragraph_to_string(title);
+                    description_parts.push(title_text);
+
+                    // Process content within heading for todos
+                    let (content_desc, content_todos) = Self::extract_content_from_ast(content)?;
+                    if !content_desc.is_empty() {
+                        description_parts.push(content_desc);
+                    }
+                    todos.extend(content_todos);
+                }
+                NorgAST::Paragraph(segments) => {
+                    if found_heading && in_description {
+                        let text = Self::paragraph_to_string(segments);
+                        if !text.trim().is_empty() {
+                            description_parts.push(text);
+                        }
+                    }
+                }
+                NorgAST::NestableDetachedModifier {
+                    modifier_type: NestableDetachedModifier::UnorderedList,
+                    level,
+                    text,
+                    content,
+                    extensions,
+                    ..
+                } => {
+                    in_description = false; // Stop collecting description once we hit todos
+
+                    // Extract todo from the extensions and text
+                    if let Some(todo) = Self::extract_todo_from_modifier(
+                        text,
+                        *level,
+                        extensions,
+                        &mut todo_id_counter,
+                    )? {
+                        todos.push(todo);
+                    }
+
+                    // Recursively process nested todos
+                    let (_, nested_todos) = Self::extract_content_from_ast(content)?;
+                    todos.extend(nested_todos);
+                }
+                _ => {
+                    // Ignore other AST nodes
+                }
             }
         }
 
-        Ok(todos)
+        let description = description_parts.join("\n\n").trim().to_string();
+        Ok((description, todos))
     }
 
-    fn parse_todo_line(line: &str, line_number: usize) -> Result<Option<TodoItem>> {
-        let trimmed = line.trim();
+    fn extract_todo_from_modifier(
+        text: &Box<NorgASTFlat>,
+        level: u16,
+        extensions: &Vec<DetachedModifierExtension>,
+        todo_id_counter: &mut usize,
+    ) -> Result<Option<TodoItem>> {
+        if let NorgASTFlat::Paragraph(segments) = text.as_ref() {
+            let text_content = Self::paragraph_to_string(segments);
 
-        if !Self::is_todo_line(trimmed) {
-            return Ok(None);
-        }
-
-        // Count leading whitespace for level calculation
-        let level = (line.len() - line.trim_start().len()) / 2; // Assuming 2 spaces per level
-
-        // Find the todo marker pattern: ( ) or (x) etc.
-        if let Some(marker_start) = trimmed.find('(') {
-            if let Some(marker_end) = trimmed.find(')') {
-                if marker_end > marker_start && marker_end - marker_start == 2 {
-                    let state_char = trimmed.chars().nth(marker_start + 1).unwrap_or(' ');
-                    let state = TodoState::from_norg_char(state_char).unwrap_or(TodoState::Undone);
-
-                    // Extract text after the marker
-                    let text = trimmed[marker_end + 1..].trim().to_string();
+            // Look for Todo extension in the extensions array
+            for extension in extensions {
+                // Check if this extension indicates a todo item
+                if let Some(state) = Self::extract_todo_state_from_extension(extension) {
+                    *todo_id_counter += 1;
 
                     return Ok(Some(TodoItem {
-                        id: String::new(), // Will be set by caller
-                        text,
+                        id: format!("todo_{}", todo_id_counter),
+                        text: text_content,
                         state,
-                        level,
-                        line_number,
+                        level: level as usize,
+                        line_number: 0, // We don't have line numbers from AST
                     }));
                 }
             }
         }
-
         Ok(None)
     }
 
-    fn is_todo_line(line: &str) -> bool {
-        // Look for patterns like "- ( )", "- (x)" etc.
-        (line.contains("- (") && line.contains(')'))
+    fn extract_todo_state_from_extension(
+        extension: &DetachedModifierExtension,
+    ) -> Option<TodoState> {
+        // For now, let's match based on debug output patterns we saw
+        match extension {
+            DetachedModifierExtension::Todo(todo_status) => {
+                // TODO: handle recurring Option<String> for dates
+                match todo_status {
+                    TodoStatus::Done => Some(TodoState::Done),
+                    TodoStatus::Pending => Some(TodoState::Pending),
+                    TodoStatus::Urgent => Some(TodoState::Urgent),
+                    TodoStatus::Undone => Some(TodoState::Undone),
+                    TodoStatus::Paused => Some(TodoState::OnHold),
+                    TodoStatus::Canceled => Some(TodoState::Cancelled),
+                    TodoStatus::NeedsClarification => Some(TodoState::Uncertain),
+                    TodoStatus::Recurring(_) => Some(TodoState::Recurring),
+                }
+            }
+            _ => {
+                // Ignore other extensions
+                None
+            }
+        }
+    }
+
+    fn paragraph_to_string(segments: &[ParagraphSegment]) -> String {
+        let mut result = String::new();
+
+        for segment in segments {
+            match segment {
+                ParagraphSegment::Token(token) => match token {
+                    ParagraphSegmentToken::Text(text) => result.push_str(text),
+                    ParagraphSegmentToken::Whitespace => result.push(' '),
+                    ParagraphSegmentToken::Special(c) | ParagraphSegmentToken::Escape(c) => {
+                        result.push(*c);
+                    }
+                },
+                ParagraphSegment::AttachedModifier { content, .. } => {
+                    // For simplicity, just extract the text content from modifiers
+                    result.push_str(&Self::paragraph_to_string(content));
+                }
+                ParagraphSegment::InlineVerbatim(tokens) => {
+                    for token in tokens {
+                        match token {
+                            ParagraphSegmentToken::Text(text) => result.push_str(text),
+                            ParagraphSegmentToken::Whitespace => result.push(' '),
+                            ParagraphSegmentToken::Special(c)
+                            | ParagraphSegmentToken::Escape(c) => {
+                                result.push(*c);
+                            }
+                        }
+                    }
+                }
+                ParagraphSegment::Link { description, .. } => {
+                    if let Some(desc) = description {
+                        result.push_str(&Self::paragraph_to_string(desc));
+                    }
+                }
+                _ => {
+                    // For unhandled segment types, continue without adding content
+                }
+            }
+        }
+
+        result
     }
 
     pub fn write_task_file(task: &Task) -> Result<()> {
@@ -141,10 +213,10 @@ impl NorgParser {
 
         // Write todos
         for todo in &task.todos {
-            let indent = "  ".repeat(todo.level);
+            let list_prefix = "-".repeat(todo.level.max(1)); // At least one hyphen
             content.push_str(&format!(
-                "{}- ({}) {}\n",
-                indent,
+                "{} ({}) {}\n",
+                list_prefix,
                 todo.state.to_norg_char(),
                 todo.text
             ));
