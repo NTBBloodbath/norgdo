@@ -128,7 +128,9 @@ impl Task {
             return 100.0;
         }
 
-        let completed = self.todos.iter()
+        let completed = self
+            .todos
+            .iter()
             .filter(|todo| todo.state.is_completed())
             .count();
 
@@ -142,10 +144,10 @@ impl Task {
 
         let counts = self.todo_counts();
         let total = self.todos.len();
-        let completed = *counts.get(&TodoState::Done).unwrap_or(&0) +
-                       *counts.get(&TodoState::Cancelled).unwrap_or(&0);
-        let in_progress = *counts.get(&TodoState::Pending).unwrap_or(&0) +
-                         *counts.get(&TodoState::Urgent).unwrap_or(&0);
+        let completed = *counts.get(&TodoState::Done).unwrap_or(&0)
+            + *counts.get(&TodoState::Cancelled).unwrap_or(&0);
+        let in_progress = *counts.get(&TodoState::Pending).unwrap_or(&0)
+            + *counts.get(&TodoState::Urgent).unwrap_or(&0);
 
         if completed == total {
             KanbanCategory::Completed
