@@ -18,6 +18,32 @@ Get your tasks done using Norg, straight from your terminal.
 - **Search functionality** to find tasks quickly
 - **Create new tasks** directly from the terminal interface
 
+## Showcase
+
+<details>
+   <summary>Kanban UI</summary>
+
+   <img width="1884" height="1000" alt="image" src="https://github.com/user-attachments/assets/47108205-0a15-4baf-b911-04716eac9afb" />
+</details>
+
+<details>
+   <summary>Task UI</summary>
+
+   <img width="1884" height="1000" alt="image" src="https://github.com/user-attachments/assets/3e10a2cb-470c-4847-a05a-31a5ba1963d6" />
+</details>
+
+<details>
+   <summary>TODO state change UI</summary>
+
+   <img width="1884" height="1000" alt="image" src="https://github.com/user-attachments/assets/e64ca773-d9e7-4363-aad3-ce87534d9959" />
+</details>
+
+<details>
+   <summary>Help UI</summary>
+   
+   <img width="1884" height="1000" alt="image" src="https://github.com/user-attachments/assets/f2d8a6b4-d42d-4dd3-8b8b-78ec810e905e" />
+</details>
+
 ## Installation
 
 1. Clone the repository:
