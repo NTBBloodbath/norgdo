@@ -75,6 +75,39 @@ impl TaskManager {
         Ok(self.tasks.last().unwrap())
     }
 
+    pub fn create_task_with_details(
+        &mut self,
+        title: String,
+        description: String,
+        initial_todos: Vec<String>,
+    ) -> Result<&Task> {
+        use crate::task::{TodoItem, TodoState};
+
+        let filename = Self::sanitize_filename(&title);
+        let file_path = self.data_dir.join(format!("{}.norg", filename));
+
+        let mut task = Task::new(title, file_path);
+        task.description = description;
+
+        // Add initial TODO items
+        for (index, todo_text) in initial_todos.iter().enumerate() {
+            if !todo_text.trim().is_empty() {
+                task.todos.push(TodoItem {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    text: todo_text.trim().to_string(),
+                    state: TodoState::Undone,
+                    level: 0,               // Top-level todos
+                    line_number: index + 2, // Start after title and empty line
+                });
+            }
+        }
+
+        NorgParser::write_task_file(&task)?;
+
+        self.tasks.push(task);
+        Ok(self.tasks.last().unwrap())
+    }
+
     pub fn save_task(&mut self, task_id: &str) -> Result<()> {
         if let Some(task) = self.tasks.iter().find(|t| t.id == task_id) {
             NorgParser::write_task_file(task)?;

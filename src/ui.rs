@@ -1,4 +1,4 @@
-use crate::app::{App, AppMode, FocusedPane};
+use crate::app::{App, AppMode, FocusedPane, WizardStep};
 use crate::task::{KanbanCategory, TodoState};
 use ratatui::widgets::BorderType;
 use ratatui::{
@@ -16,6 +16,10 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             render_task_detail(app, frame, &task_id);
         }
         AppMode::CreateTask => render_create_task(app, frame),
+        AppMode::CreateTaskWizard(step) => {
+            let step = step.clone();
+            render_task_wizard(app, frame, step);
+        }
         AppMode::Search => render_search(app, frame),
         AppMode::Help => render_help(app, frame),
     }
@@ -388,6 +392,219 @@ fn render_search(app: &mut App, frame: &mut Frame) {
     frame.render_widget(results_list, chunks[2]);
 }
 
+fn render_task_wizard(app: &mut App, frame: &mut Frame, step: WizardStep) {
+    match step {
+        WizardStep::Title => render_wizard_title(app, frame),
+        WizardStep::Description => render_wizard_description(app, frame),
+        WizardStep::Todos => render_wizard_todos(app, frame),
+        WizardStep::Confirm => render_wizard_confirm(app, frame),
+    }
+}
+
+fn render_wizard_title(app: &mut App, frame: &mut Frame) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Length(3), // Input
+            Constraint::Min(0),    // Help
+        ])
+        .split(frame.area());
+
+    let title = Paragraph::new("Create New Task - Step 1 of 4: Title")
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        );
+    frame.render_widget(title, chunks[0]);
+
+    let input = Paragraph::new(app.wizard_data.title.as_str()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("Task Title (required)"),
+    );
+    frame.render_widget(input, chunks[1]);
+
+    let help = Paragraph::new("Type the task title and press Enter to continue, Esc to cancel")
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    frame.render_widget(help, chunks[2]);
+}
+
+fn render_wizard_description(app: &mut App, frame: &mut Frame) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Length(5), // Input
+            Constraint::Min(0),    // Help
+        ])
+        .split(frame.area());
+
+    let title = Paragraph::new("Create New Task - Step 2 of 4: Description")
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        );
+    frame.render_widget(title, chunks[0]);
+
+    let input = Paragraph::new(app.wizard_data.description.as_str())
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Description (optional)"),
+        );
+    frame.render_widget(input, chunks[1]);
+
+    let help =
+        Paragraph::new("Type the task description and press Enter to continue, Esc to cancel")
+            .style(Style::default().fg(Color::Gray))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true });
+    frame.render_widget(help, chunks[2]);
+}
+
+fn render_wizard_todos(app: &mut App, frame: &mut Frame) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Length(3), // Current input
+            Constraint::Min(0),    // Todo list
+            Constraint::Length(4), // Help
+        ])
+        .split(frame.area());
+
+    let title = Paragraph::new("Create New Task - Step 3 of 4: TODO Items")
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        );
+    frame.render_widget(title, chunks[0]);
+
+    let input = Paragraph::new(app.wizard_data.current_todo.as_str()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("Add TODO Item"),
+    );
+    frame.render_widget(input, chunks[1]);
+
+    // Show existing todos
+    let todo_items: Vec<ListItem> = app
+        .wizard_data
+        .todos
+        .iter()
+        .enumerate()
+        .map(|(i, todo)| {
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("{}. ", i + 1), Style::default().fg(Color::Gray)),
+                Span::raw("[ ] "),
+                Span::styled(todo, Style::default().fg(Color::White)),
+            ]))
+        })
+        .collect();
+
+    let todos_list = List::new(todo_items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(format!("TODO Items ({})", app.wizard_data.todos.len())),
+    );
+    frame.render_widget(todos_list, chunks[2]);
+
+    let help = Paragraph::new("Type TODO item and press Enter to add, Enter on empty line or Tab to continue, Esc to cancel")
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    frame.render_widget(help, chunks[3]);
+}
+
+fn render_wizard_confirm(app: &mut App, frame: &mut Frame) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Min(0),    // Summary
+            Constraint::Length(3), // Help
+        ])
+        .split(frame.area());
+
+    let title = Paragraph::new("Create New Task - Step 4 of 4: Confirm")
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        );
+    frame.render_widget(title, chunks[0]);
+
+    // Create summary content
+    let mut summary_lines = vec![format!("Title: {}", app.wizard_data.title), String::new()];
+
+    if !app.wizard_data.description.is_empty() {
+        summary_lines.push(format!("Description: {}", app.wizard_data.description));
+        summary_lines.push(String::new());
+    }
+
+    if !app.wizard_data.todos.is_empty() {
+        summary_lines.push(format!("TODO Items ({}):", app.wizard_data.todos.len()));
+        for (i, todo) in app.wizard_data.todos.iter().enumerate() {
+            summary_lines.push(format!("  {}. [ ] {}", i + 1, todo));
+        }
+    } else {
+        summary_lines.push("No TODO items".to_string());
+    }
+
+    let summary_text = summary_lines.join("\n");
+
+    let summary = Paragraph::new(summary_text)
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Task Summary"),
+        );
+    frame.render_widget(summary, chunks[1]);
+
+    let help = Paragraph::new("Press Enter or Y to create task, N or Esc to cancel")
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+    frame.render_widget(help, chunks[2]);
+}
+
 fn render_error_popup(frame: &mut Frame, error: &str) {
     let popup_area = centered_rect(60, 20, frame.area());
 
@@ -443,6 +660,13 @@ fn render_help(app: &mut App, frame: &mut Frame) {
         "  n                   Create new task",
         "  r                   Refresh tasks from disk",
         "  /                   Search tasks",
+        "",
+        "TASK CREATION WIZARD:",
+        "  Enter               Continue to next step / Add TODO item",
+        "  Tab                 Skip to confirmation (from TODO step)",
+        "  Esc                 Cancel wizard and return to dashboard",
+        "  Backspace           Delete character",
+        "  Y/N                 Confirm/Cancel task creation (final step)",
         "",
         "TASK DETAIL VIEW:",
         "  Up/Down (↑ ↓)       Navigate between TODO items",

@@ -10,8 +10,25 @@ pub enum AppMode {
     Dashboard,
     TaskDetail(String), // task_id
     CreateTask,
+    CreateTaskWizard(WizardStep),
     Search,
     Help,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum WizardStep {
+    Title,
+    Description,
+    Todos,
+    Confirm,
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskWizardData {
+    pub title: String,
+    pub description: String,
+    pub todos: Vec<String>,
+    pub current_todo: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -33,6 +50,7 @@ pub struct App {
     pub todo_list_state: ListState, // For navigating todos in task detail view
     pub help_scroll_offset: u16,    // For scrolling help content
     pub help_scrollbar_state: ScrollbarState, // For help scrollbar widget
+    pub wizard_data: TaskWizardData, // For task creation wizard
 }
 
 impl App {
@@ -56,6 +74,12 @@ impl App {
             todo_list_state: ListState::default(),
             help_scroll_offset: 0,
             help_scrollbar_state: ScrollbarState::default(),
+            wizard_data: TaskWizardData {
+                title: String::new(),
+                description: String::new(),
+                todos: Vec::new(),
+                current_todo: String::new(),
+            },
         })
     }
 
@@ -75,6 +99,10 @@ impl App {
                     self.handle_task_detail_input(key.code, &task_id)?;
                 }
                 AppMode::CreateTask => self.handle_create_task_input(key.code)?,
+                AppMode::CreateTaskWizard(step) => {
+                    let step = step.clone();
+                    self.handle_wizard_input(key.code, step)?;
+                }
                 AppMode::Search => self.handle_search_input(key.code)?,
                 AppMode::Help => self.handle_help_input(key.code)?,
             }
@@ -86,8 +114,14 @@ impl App {
         match key_code {
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Char('n') => {
-                self.mode = AppMode::CreateTask;
-                self.new_task_title.clear();
+                // Reset wizard data and start the wizard
+                self.wizard_data = TaskWizardData {
+                    title: String::new(),
+                    description: String::new(),
+                    todos: Vec::new(),
+                    current_todo: String::new(),
+                };
+                self.mode = AppMode::CreateTaskWizard(WizardStep::Title);
             }
             KeyCode::Char('/') => {
                 self.mode = AppMode::Search;
@@ -296,6 +330,123 @@ impl App {
                     }
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn handle_wizard_input(&mut self, key_code: KeyCode, step: WizardStep) -> Result<()> {
+        match step {
+            WizardStep::Title => self.handle_wizard_title_input(key_code)?,
+            WizardStep::Description => self.handle_wizard_description_input(key_code)?,
+            WizardStep::Todos => self.handle_wizard_todos_input(key_code)?,
+            WizardStep::Confirm => self.handle_wizard_confirm_input(key_code)?,
+        }
+        Ok(())
+    }
+
+    fn handle_wizard_title_input(&mut self, key_code: KeyCode) -> Result<()> {
+        match key_code {
+            KeyCode::Esc => self.mode = AppMode::Dashboard,
+            KeyCode::Enter => {
+                if !self.wizard_data.title.trim().is_empty() {
+                    self.mode = AppMode::CreateTaskWizard(WizardStep::Description);
+                }
+            }
+            KeyCode::Backspace => {
+                self.wizard_data.title.pop();
+            }
+            KeyCode::Char(c) => {
+                self.wizard_data.title.push(c);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_wizard_description_input(&mut self, key_code: KeyCode) -> Result<()> {
+        match key_code {
+            KeyCode::Esc => self.mode = AppMode::Dashboard,
+            KeyCode::Enter => {
+                // Move to todos step regardless of description content
+                self.mode = AppMode::CreateTaskWizard(WizardStep::Todos);
+            }
+            KeyCode::Backspace => {
+                self.wizard_data.description.pop();
+            }
+            KeyCode::Char(c) => {
+                self.wizard_data.description.push(c);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_wizard_todos_input(&mut self, key_code: KeyCode) -> Result<()> {
+        match key_code {
+            KeyCode::Esc => self.mode = AppMode::Dashboard,
+            KeyCode::Enter => {
+                if !self.wizard_data.current_todo.trim().is_empty() {
+                    // Add current todo to the list
+                    self.wizard_data
+                        .todos
+                        .push(self.wizard_data.current_todo.clone());
+                    self.wizard_data.current_todo.clear();
+                } else {
+                    // If current todo is empty, move to confirm step
+                    self.mode = AppMode::CreateTaskWizard(WizardStep::Confirm);
+                }
+            }
+            KeyCode::Backspace => {
+                self.wizard_data.current_todo.pop();
+            }
+            KeyCode::Char(c) => {
+                self.wizard_data.current_todo.push(c);
+            }
+            KeyCode::Tab => {
+                // Skip to confirm step
+                if !self.wizard_data.current_todo.trim().is_empty() {
+                    self.wizard_data
+                        .todos
+                        .push(self.wizard_data.current_todo.clone());
+                    self.wizard_data.current_todo.clear();
+                }
+                self.mode = AppMode::CreateTaskWizard(WizardStep::Confirm);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_wizard_confirm_input(&mut self, key_code: KeyCode) -> Result<()> {
+        match key_code {
+            KeyCode::Esc => self.mode = AppMode::Dashboard,
+            KeyCode::Enter | KeyCode::Char('y') | KeyCode::Char('Y') => {
+                // Create the task
+                match self.task_manager.create_task_with_details(
+                    self.wizard_data.title.clone(),
+                    self.wizard_data.description.clone(),
+                    self.wizard_data.todos.clone(),
+                ) {
+                    Ok(_) => {
+                        self.mode = AppMode::Dashboard;
+                        // Reset wizard data
+                        self.wizard_data = TaskWizardData {
+                            title: String::new(),
+                            description: String::new(),
+                            todos: Vec::new(),
+                            current_todo: String::new(),
+                        };
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to create task: {}", e));
+                        self.mode = AppMode::Dashboard;
+                    }
+                }
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') => {
+                self.mode = AppMode::Dashboard;
+            }
+            _ => {}
         }
         Ok(())
     }

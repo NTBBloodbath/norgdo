@@ -104,11 +104,24 @@ Tasks are automatically categorized based on their TODO states:
 
 ### Creating Tasks
 
-1. Press `n` to create a new task
-2. Type the task title
-3. Press `Enter` to create the task file
-4. The file will be saved in your data directory as `<title>.norg`
-5. Edit the file manually to add description and TODO items
+Norgdo features a **4-step task creation wizard** for creating complete tasks easily:
+
+1. **Press `n`** to start the task creation wizard
+2. **Step 1 - Title**: Type the task title and press `Enter`
+3. **Step 2 - Description**: Type an optional description and press `Enter`
+4. **Step 3 - TODO Items**:
+   - Type TODO items one by one, pressing `Enter` after each
+   - Press `Enter` on an empty line or `Tab` to skip to confirmation
+5. **Step 4 - Confirmation**: Review your task and press `Y` to create or `N` to cancel
+
+The wizard creates complete `.norg` files with proper formatting in your data directory (`~/.local/share/norgdo/`).
+
+#### Wizard Controls
+- **Enter**: Continue to next step / Add TODO item
+- **Tab**: Skip to confirmation (from TODO step)
+- **Esc**: Cancel wizard and return to dashboard
+- **Backspace**: Delete characters while typing
+- **Y/N**: Confirm or cancel task creation (final step)
 
 ### Task Detail View
 
@@ -138,10 +151,10 @@ Tasks are automatically categorized based on their TODO states:
 - [x] TODO state toggling
 - [x] Visual progress bars
 - [x] Enhanced TODO navigation in detail view
+- [x] Task creation wizard
 - [ ] Task relationships (dependencies, related tasks)
 - [ ] Due date support
 - [ ] Search and filtering
-- [ ] Task creation wizard
 - [ ] Export functionality
 - [ ] Configuration options
 
