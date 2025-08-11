@@ -2,7 +2,7 @@ use crate::task::KanbanCategory;
 use crate::task_manager::TaskManager;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use ratatui::widgets::ListState;
+use ratatui::widgets::{ListState, ScrollbarState};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -11,6 +11,7 @@ pub enum AppMode {
     TaskDetail(String), // task_id
     CreateTask,
     Search,
+    Help,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,6 +31,8 @@ pub struct App {
     pub new_task_title: String,
     pub error_message: Option<String>,
     pub todo_list_state: ListState, // For navigating todos in task detail view
+    pub help_scroll_offset: u16,    // For scrolling help content
+    pub help_scrollbar_state: ScrollbarState, // For help scrollbar widget
 }
 
 impl App {
@@ -51,6 +54,8 @@ impl App {
             new_task_title: String::new(),
             error_message: None,
             todo_list_state: ListState::default(),
+            help_scroll_offset: 0,
+            help_scrollbar_state: ScrollbarState::default(),
         })
     }
 
@@ -71,6 +76,7 @@ impl App {
                 }
                 AppMode::CreateTask => self.handle_create_task_input(key.code)?,
                 AppMode::Search => self.handle_search_input(key.code)?,
+                AppMode::Help => self.handle_help_input(key.code)?,
             }
         }
         Ok(())
@@ -102,6 +108,9 @@ impl App {
             KeyCode::Enter => self.open_selected_task()?,
             KeyCode::Char('r') => {
                 self.task_manager.load_tasks()?;
+            }
+            KeyCode::Char('?') => {
+                self.mode = AppMode::Help;
             }
             _ => {}
         }
@@ -154,6 +163,9 @@ impl App {
                         .toggle_todo_state(task_id, selected_index)?;
                 }
             }
+            KeyCode::Char('?') => {
+                self.mode = AppMode::Help;
+            }
             _ => {}
         }
         Ok(())
@@ -198,6 +210,39 @@ impl App {
             }
             KeyCode::Char(c) => {
                 self.search_query.push(c);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn handle_help_input(&mut self, key_code: KeyCode) -> Result<()> {
+        match key_code {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
+                self.mode = AppMode::Dashboard;
+                self.help_scroll_offset = 0; // Reset scroll when closing help
+                self.help_scrollbar_state = ScrollbarState::default(); // Reset scrollbar state
+            }
+            KeyCode::Up => {
+                if self.help_scroll_offset > 0 {
+                    self.help_scroll_offset -= 1;
+                }
+            }
+            KeyCode::Down => {
+                // We'll clamp this in the UI render function based on content size
+                self.help_scroll_offset += 1;
+            }
+            KeyCode::PageUp => {
+                self.help_scroll_offset = self.help_scroll_offset.saturating_sub(5);
+            }
+            KeyCode::PageDown => {
+                self.help_scroll_offset += 5;
+            }
+            KeyCode::Home => {
+                self.help_scroll_offset = 0;
+            }
+            KeyCode::End => {
+                self.help_scroll_offset = u16::MAX; // Set to max to scroll to bottom
             }
             _ => {}
         }

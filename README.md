@@ -46,6 +46,7 @@ cargo run
 - **n** Create a new task
 - **/** Search for tasks
 - **r** Refresh task list from disk
+- **?** Show help popup
 - **q** Quit the application
 
 ### Enhanced Navigation (Task Detail View)

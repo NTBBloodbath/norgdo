@@ -3,7 +3,9 @@ use crate::task::{KanbanCategory, TodoState};
 use ratatui::widgets::BorderType;
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
+    widgets::{
+        Block, Borders, Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, Wrap,
+    },
 };
 
 pub fn render(app: &mut App, frame: &mut Frame) {
@@ -15,6 +17,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         }
         AppMode::CreateTask => render_create_task(app, frame),
         AppMode::Search => render_search(app, frame),
+        AppMode::Help => render_help(app, frame),
     }
 
     // Render error message if present
@@ -91,7 +94,7 @@ fn render_dashboard(app: &mut App, frame: &mut Frame) {
     );
 
     // Help text
-    let help_text = "Navigation: Left/Right switch columns | Up/Down select task | Enter open task | n new task | / search | r refresh | q quit";
+    let help_text = "Press ? for help | Press Esc/q to quit";
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
@@ -276,18 +279,16 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
         frame.render_stateful_widget(todos_list, chunks[2], &mut app.todo_list_state);
 
         // Help
-        let help = Paragraph::new(
-            "Navigation: Esc/q back | Up/Down select todo | Space toggle state | s save",
-        )
-        .style(Style::default().fg(Color::Gray))
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true })
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .title("Help"),
-        );
+        let help = Paragraph::new("Press ? for help | Press Esc/q to quit")
+            .style(Style::default().fg(Color::Gray))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("Help"),
+            );
         frame.render_widget(help, chunks[3]);
     }
 }
@@ -425,4 +426,117 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+fn render_help(app: &mut App, frame: &mut Frame) {
+    let popup_area = centered_rect(80, 70, frame.area());
+
+    frame.render_widget(Clear, popup_area);
+
+    let help_content = vec![
+        "DASHBOARD NAVIGATION:",
+        "  Left/Right (← →)    Switch between kanban columns",
+        "  Up/Down (↑ ↓)       Navigate within a column",
+        "  Enter               Open selected task details",
+        "",
+        "TASK MANAGEMENT:",
+        "  n                   Create new task",
+        "  r                   Refresh tasks from disk",
+        "  /                   Search tasks",
+        "",
+        "TASK DETAIL VIEW:",
+        "  Up/Down (↑ ↓)       Navigate between TODO items",
+        "  Space               Toggle TODO state (cycle through states)",
+        "  s                   Save changes to file",
+        "  Esc/q               Return to dashboard",
+        "",
+        "TODO STATES:",
+        "  □ Undone            Task not started",
+        "  ○ Pending           Task in progress",
+        "  ✓ Done              Task completed",
+        "  ! Urgent            High priority task",
+        "  ? Uncertain         Task status unclear",
+        "  ⏸ On Hold           Task paused",
+        "  ✗ Cancelled         Task cancelled",
+        "  ↻ Recurring         Recurring task",
+        "",
+        "GENERAL:",
+        "  ?                   Show/hide this help",
+        "  q                   Quit application",
+        "",
+        "HELP NAVIGATION:",
+        "  Up/Down (↑ ↓)       Scroll help content",
+        "  Page Up/Down        Scroll faster",
+        "  Home                Go to top",
+        "  End                 Go to bottom",
+        "",
+        "Press ? or Esc/q to close this help",
+    ];
+
+    // Calculate visible content based on scroll offset and available height
+    let content_height = popup_area.height.saturating_sub(2) as usize; // Account for borders
+    let scroll_offset = app.help_scroll_offset as usize;
+    let max_scroll = help_content.len().saturating_sub(content_height);
+
+    // Clamp scroll offset to valid range and update app state
+    let actual_scroll = scroll_offset.min(max_scroll);
+    app.help_scroll_offset = actual_scroll as u16;
+
+    // Get visible lines
+    let visible_content: Vec<&str> = help_content
+        .iter()
+        .skip(actual_scroll)
+        .take(content_height)
+        .cloned()
+        .collect();
+
+    let help_text = visible_content.join("\n");
+
+    // Create the main content area and scrollbar area
+    let content_area = Rect {
+        x: popup_area.x,
+        y: popup_area.y,
+        width: popup_area.width.saturating_sub(1), // Leave space for scrollbar
+        height: popup_area.height,
+    };
+
+    let scrollbar_area = Rect {
+        x: popup_area.x + popup_area.width.saturating_sub(1),
+        y: popup_area.y + 1, // Start below the top border
+        width: 1,
+        height: popup_area.height.saturating_sub(2), // Exclude top and bottom borders
+    };
+
+    // Render the help content
+    let help_widget = Paragraph::new(help_text)
+        .style(Style::default().fg(Color::White))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(Color::Cyan))
+                .title("Help - Norgdo Terminal Task Manager"),
+        );
+
+    frame.render_widget(help_widget, content_area);
+
+    // Update and render the scrollbar
+    // FIXME: The damn scrollbar is not reaching the bottom when the help content reaches EOF
+    // ratatui documentation is terrible so it might take a while for me to fix it
+    app.help_scrollbar_state = app
+        .help_scrollbar_state
+        .content_length(help_content.len())
+        .viewport_content_length(visible_content.len())
+        .position(actual_scroll);
+
+    let scrollbar = Scrollbar::default()
+        .orientation(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"))
+        .track_symbol(Some("│"))
+        .thumb_symbol("█");
+
+    frame.render_stateful_widget(scrollbar, scrollbar_area, &mut app.help_scrollbar_state);
 }
