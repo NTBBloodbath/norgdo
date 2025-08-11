@@ -15,7 +15,6 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             let task_id = task_id.clone();
             render_task_detail(app, frame, &task_id);
         }
-        AppMode::CreateTask => render_create_task(app, frame),
         AppMode::CreateTaskWizard(step) => {
             let step = step.clone();
             render_task_wizard(app, frame, step);
@@ -297,45 +296,6 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
     }
 }
 
-fn render_create_task(app: &mut App, frame: &mut Frame) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Min(0),
-        ])
-        .split(frame.area());
-
-    let title = Paragraph::new("Create New Task")
-        .style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
-        );
-    frame.render_widget(title, chunks[0]);
-
-    let input = Paragraph::new(app.new_task_title.as_str()).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .title("Task Title"),
-    );
-    frame.render_widget(input, chunks[1]);
-
-    let help = Paragraph::new("Type task title and press Enter to create, Esc to cancel")
-        .style(Style::default().fg(Color::Gray))
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true });
-    frame.render_widget(help, chunks[2]);
-}
-
 fn render_search(app: &mut App, frame: &mut Frame) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -475,7 +435,7 @@ fn render_wizard_description(app: &mut App, frame: &mut Frame) {
     frame.render_widget(input, chunks[1]);
 
     let help =
-        Paragraph::new("Type the task description and press Enter to continue, Esc to cancel")
+        Paragraph::new("Type description and press Enter to continue, ← to go back, Esc to cancel")
             .style(Style::default().fg(Color::Gray))
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true });
@@ -507,25 +467,45 @@ fn render_wizard_todos(app: &mut App, frame: &mut Frame) {
         );
     frame.render_widget(title, chunks[0]);
 
+    let input_title = if app.wizard_data.editing_todo_index.is_some() {
+        "Edit TODO Item"
+    } else {
+        "Add TODO Item"
+    };
+
     let input = Paragraph::new(app.wizard_data.current_todo.as_str()).block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .title("Add TODO Item"),
+            .title(input_title),
     );
     frame.render_widget(input, chunks[1]);
 
-    // Show existing todos
+    // Show existing todos with selection highlighting
     let todo_items: Vec<ListItem> = app
         .wizard_data
         .todos
         .iter()
         .enumerate()
         .map(|(i, todo)| {
+            let is_selected = app.wizard_data.selected_todo_index == Some(i);
+            let style = if is_selected {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+
+            let prefix = if is_selected { "» " } else { "  " };
+
             ListItem::new(Line::from(vec![
-                Span::styled(format!("{}. ", i + 1), Style::default().fg(Color::Gray)),
+                Span::styled(
+                    format!("{}{}. ", prefix, i + 1),
+                    Style::default().fg(Color::Gray),
+                ),
                 Span::raw("[ ] "),
-                Span::styled(todo, Style::default().fg(Color::White)),
+                Span::styled(todo, style),
             ]))
         })
         .collect();
@@ -538,7 +518,7 @@ fn render_wizard_todos(app: &mut App, frame: &mut Frame) {
     );
     frame.render_widget(todos_list, chunks[2]);
 
-    let help = Paragraph::new("Type TODO item and press Enter to add, Enter on empty line or Tab to continue, Esc to cancel")
+    let help = Paragraph::new("Enter: Add item | Empty+Enter/Tab: Continue | ↑↓: Select | Del: Delete | F2: Edit | ←: Back | Esc: Cancel")
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
@@ -580,7 +560,7 @@ fn render_wizard_confirm(app: &mut App, frame: &mut Frame) {
     if !app.wizard_data.todos.is_empty() {
         summary_lines.push(format!("TODO Items ({}):", app.wizard_data.todos.len()));
         for (i, todo) in app.wizard_data.todos.iter().enumerate() {
-            summary_lines.push(format!("  {}. [ ] {}", i + 1, todo));
+            summary_lines.push(format!("  {}. ( ) {}", i + 1, todo));
         }
     } else {
         summary_lines.push("No TODO items".to_string());
@@ -598,7 +578,7 @@ fn render_wizard_confirm(app: &mut App, frame: &mut Frame) {
         );
     frame.render_widget(summary, chunks[1]);
 
-    let help = Paragraph::new("Press Enter or Y to create task, N or Esc to cancel")
+    let help = Paragraph::new("Enter/Y: Create task | ←: Go back to TODOs | Esc/N: Cancel")
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
@@ -664,9 +644,13 @@ fn render_help(app: &mut App, frame: &mut Frame) {
         "TASK CREATION WIZARD:",
         "  Enter               Continue to next step / Add TODO item",
         "  Tab                 Skip to confirmation (from TODO step)",
-        "  Esc                 Cancel wizard and return to dashboard",
+        "  Left (←)            Go back to previous step",
+        "  Up/Down (↑ ↓)       Navigate TODO list (step 3)",
         "  Backspace           Delete character",
+        "  Delete              Remove selected TODO item (step 3)",
+        "  F2                  Edit selected TODO item (step 3)",
         "  Y/N                 Confirm/Cancel task creation (final step)",
+        "  Esc                 Cancel wizard and return to dashboard",
         "",
         "TASK DETAIL VIEW:",
         "  Up/Down (↑ ↓)       Navigate between TODO items",

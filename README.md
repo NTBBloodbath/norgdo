@@ -53,7 +53,7 @@ cargo run
 - **?** Show help popup
 - **q** Quit the application
 
-### Enhanced Navigation (Task Detail View)
+### Task Detail View Navigation
 
 - **↑↓** Navigate between TODO items within a task
 - **Space** Toggle TODO state (cycles through Undone → Pending → Done)
@@ -104,20 +104,30 @@ Tasks are automatically categorized based on their TODO states:
 
 ### Creating Tasks
 
-Norgdo features a **4-step task creation wizard** for creating complete tasks easily:
+Norgdo features a **4-step task creation wizard** with full navigation and editing capabilities:
 
 1. **Press `n`** to start the task creation wizard
 2. **Step 1 - Title**: Type the task title and press `Enter`
 3. **Step 2 - Description**: Type an optional description and press `Enter`
 4. **Step 3 - TODO Items**:
    - Type TODO items one by one, pressing `Enter` after each
+   - Use `↑↓` arrows to navigate between existing TODO items
+   - Press `Delete` to remove selected TODO items
+   - Press `F2` to edit selected TODO items
    - Press `Enter` on an empty line or `Tab` to skip to confirmation
 5. **Step 4 - Confirmation**: Review your task and press `Y` to create or `N` to cancel
 
 The wizard creates complete `.norg` files with proper formatting in your data directory (`~/.local/share/norgdo/`).
 
-#### Wizard Controls
+#### Wizard Keybinds
 - **Enter**: Continue to next step / Add TODO item
+- **Tab**: Skip to confirmation (from TODO step)
+- **← (Left Arrow)**: Go back to previous step
+- **Backspace**: Delete character / Go back to previous step (when input is empty)
+- **↑↓ (Up/Down)**: Navigate TODO list for editing (step 3 only)
+- **Delete**: Remove selected TODO item (step 3 only)
+- **F2**: Edit selected TODO item (step 3 only)
+- **Y/N**: Confirm or cancel task creation (final step)
 - **Tab**: Skip to confirmation (from TODO step)
 - **Esc**: Cancel wizard and return to dashboard
 - **Backspace**: Delete characters while typing

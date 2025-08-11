@@ -9,7 +9,6 @@ use std::collections::HashMap;
 pub enum AppMode {
     Dashboard,
     TaskDetail(String), // task_id
-    CreateTask,
     CreateTaskWizard(WizardStep),
     Search,
     Help,
@@ -29,6 +28,8 @@ pub struct TaskWizardData {
     pub description: String,
     pub todos: Vec<String>,
     pub current_todo: String,
+    pub selected_todo_index: Option<usize>, // For editing/deleting todos
+    pub editing_todo_index: Option<usize>,  // For preserving order when editing
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,7 +46,6 @@ pub struct App {
     pub list_states: HashMap<KanbanCategory, ListState>,
     pub should_quit: bool,
     pub search_query: String,
-    pub new_task_title: String,
     pub error_message: Option<String>,
     pub todo_list_state: ListState, // For navigating todos in task detail view
     pub help_scroll_offset: u16,    // For scrolling help content
@@ -69,7 +69,6 @@ impl App {
             list_states,
             should_quit: false,
             search_query: String::new(),
-            new_task_title: String::new(),
             error_message: None,
             todo_list_state: ListState::default(),
             help_scroll_offset: 0,
@@ -79,6 +78,8 @@ impl App {
                 description: String::new(),
                 todos: Vec::new(),
                 current_todo: String::new(),
+                selected_todo_index: None,
+                editing_todo_index: None,
             },
         })
     }
@@ -98,7 +99,6 @@ impl App {
                     let task_id = task_id.clone();
                     self.handle_task_detail_input(key.code, &task_id)?;
                 }
-                AppMode::CreateTask => self.handle_create_task_input(key.code)?,
                 AppMode::CreateTaskWizard(step) => {
                     let step = step.clone();
                     self.handle_wizard_input(key.code, step)?;
@@ -120,6 +120,8 @@ impl App {
                     description: String::new(),
                     todos: Vec::new(),
                     current_todo: String::new(),
+                    selected_todo_index: None,
+                    editing_todo_index: None,
                 };
                 self.mode = AppMode::CreateTaskWizard(WizardStep::Title);
             }
@@ -199,33 +201,6 @@ impl App {
             }
             KeyCode::Char('?') => {
                 self.mode = AppMode::Help;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn handle_create_task_input(&mut self, key_code: KeyCode) -> Result<()> {
-        match key_code {
-            KeyCode::Esc => self.mode = AppMode::Dashboard,
-            KeyCode::Enter => {
-                if !self.new_task_title.trim().is_empty() {
-                    match self.task_manager.create_task(self.new_task_title.clone()) {
-                        Ok(_) => {
-                            self.mode = AppMode::Dashboard;
-                            self.new_task_title.clear();
-                        }
-                        Err(e) => {
-                            self.error_message = Some(format!("Failed to create task: {}", e));
-                        }
-                    }
-                }
-            }
-            KeyCode::Backspace => {
-                self.new_task_title.pop();
-            }
-            KeyCode::Char(c) => {
-                self.new_task_title.push(c);
             }
             _ => {}
         }
@@ -373,6 +348,10 @@ impl App {
             KeyCode::Backspace => {
                 self.wizard_data.description.pop();
             }
+            KeyCode::Left => {
+                // Explicit back navigation using Left arrow
+                self.mode = AppMode::CreateTaskWizard(WizardStep::Title);
+            }
             KeyCode::Char(c) => {
                 self.wizard_data.description.push(c);
             }
@@ -383,14 +362,30 @@ impl App {
 
     fn handle_wizard_todos_input(&mut self, key_code: KeyCode) -> Result<()> {
         match key_code {
-            KeyCode::Esc => self.mode = AppMode::Dashboard,
+            KeyCode::Esc => {
+                // Clear editing state when canceling
+                self.wizard_data.editing_todo_index = None;
+                self.wizard_data.current_todo.clear();
+                self.mode = AppMode::Dashboard;
+            }
             KeyCode::Enter => {
                 if !self.wizard_data.current_todo.trim().is_empty() {
-                    // Add current todo to the list
-                    self.wizard_data
-                        .todos
-                        .push(self.wizard_data.current_todo.clone());
+                    // Check if we're editing an existing TODO
+                    if let Some(edit_index) = self.wizard_data.editing_todo_index {
+                        // Replace the TODO at the original position
+                        if edit_index < self.wizard_data.todos.len() {
+                            self.wizard_data.todos[edit_index] = self.wizard_data.current_todo.clone();
+                        } else {
+                            // Fallback: add to end if index is invalid
+                            self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                        }
+                        self.wizard_data.editing_todo_index = None;
+                    } else {
+                        // Add new TODO to the end
+                        self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                    }
                     self.wizard_data.current_todo.clear();
+                    self.wizard_data.selected_todo_index = None;
                 } else {
                     // If current todo is empty, move to confirm step
                     self.mode = AppMode::CreateTaskWizard(WizardStep::Confirm);
@@ -398,6 +393,10 @@ impl App {
             }
             KeyCode::Backspace => {
                 self.wizard_data.current_todo.pop();
+                // If we've cleared the input while editing, cancel the edit
+                if self.wizard_data.current_todo.is_empty() && self.wizard_data.editing_todo_index.is_some() {
+                    self.wizard_data.editing_todo_index = None;
+                }
             }
             KeyCode::Char(c) => {
                 self.wizard_data.current_todo.push(c);
@@ -405,12 +404,86 @@ impl App {
             KeyCode::Tab => {
                 // Skip to confirm step
                 if !self.wizard_data.current_todo.trim().is_empty() {
-                    self.wizard_data
-                        .todos
-                        .push(self.wizard_data.current_todo.clone());
+                    // Check if we're editing an existing TODO
+                    if let Some(edit_index) = self.wizard_data.editing_todo_index {
+                        // Replace the TODO at the original position
+                        if edit_index < self.wizard_data.todos.len() {
+                            self.wizard_data.todos[edit_index] = self.wizard_data.current_todo.clone();
+                        } else {
+                            // Fallback: add to end if index is invalid
+                            self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                        }
+                        self.wizard_data.editing_todo_index = None;
+                    } else {
+                        // Add new TODO to the end
+                        self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                    }
                     self.wizard_data.current_todo.clear();
                 }
                 self.mode = AppMode::CreateTaskWizard(WizardStep::Confirm);
+            }
+            KeyCode::Left => {
+                // Clear editing state when going back
+                self.wizard_data.editing_todo_index = None;
+                self.wizard_data.current_todo.clear();
+                // Go back to description step
+                self.mode = AppMode::CreateTaskWizard(WizardStep::Description);
+            }
+            KeyCode::Up => {
+                // Navigate up in TODO list
+                if !self.wizard_data.todos.is_empty() {
+                    match self.wizard_data.selected_todo_index {
+                        Some(index) if index > 0 => {
+                            self.wizard_data.selected_todo_index = Some(index - 1);
+                        }
+                        None => {
+                            self.wizard_data.selected_todo_index =
+                                Some(self.wizard_data.todos.len() - 1);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            KeyCode::Down => {
+                // Navigate down in TODO list
+                if !self.wizard_data.todos.is_empty() {
+                    match self.wizard_data.selected_todo_index {
+                        Some(index) if index < self.wizard_data.todos.len() - 1 => {
+                            self.wizard_data.selected_todo_index = Some(index + 1);
+                        }
+                        None => {
+                            self.wizard_data.selected_todo_index = Some(0);
+                        }
+                        _ => {
+                            self.wizard_data.selected_todo_index = None;
+                        }
+                    }
+                }
+            }
+            KeyCode::Delete => {
+                // Delete selected TODO item
+                if let Some(index) = self.wizard_data.selected_todo_index {
+                    if index < self.wizard_data.todos.len() {
+                        self.wizard_data.todos.remove(index);
+                        // Adjust selection after deletion
+                        if self.wizard_data.todos.is_empty() {
+                            self.wizard_data.selected_todo_index = None;
+                        } else if index >= self.wizard_data.todos.len() {
+                            self.wizard_data.selected_todo_index =
+                                Some(self.wizard_data.todos.len() - 1);
+                        }
+                    }
+                }
+            }
+            KeyCode::F(2) => {
+                // Edit selected TODO item (copy to current input)
+                if let Some(index) = self.wizard_data.selected_todo_index {
+                    if index < self.wizard_data.todos.len() {
+                        self.wizard_data.current_todo = self.wizard_data.todos[index].clone();
+                        self.wizard_data.editing_todo_index = Some(index);
+                        self.wizard_data.selected_todo_index = None;
+                    }
+                }
             }
             _ => {}
         }
@@ -435,6 +508,8 @@ impl App {
                             description: String::new(),
                             todos: Vec::new(),
                             current_todo: String::new(),
+                            selected_todo_index: None,
+                            editing_todo_index: None,
                         };
                     }
                     Err(e) => {
@@ -445,6 +520,10 @@ impl App {
             }
             KeyCode::Char('n') | KeyCode::Char('N') => {
                 self.mode = AppMode::Dashboard;
+            }
+            KeyCode::Left | KeyCode::Backspace => {
+                // Go back to TODOs step
+                self.mode = AppMode::CreateTaskWizard(WizardStep::Todos);
             }
             _ => {}
         }
