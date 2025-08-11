@@ -374,15 +374,20 @@ impl App {
                     if let Some(edit_index) = self.wizard_data.editing_todo_index {
                         // Replace the TODO at the original position
                         if edit_index < self.wizard_data.todos.len() {
-                            self.wizard_data.todos[edit_index] = self.wizard_data.current_todo.clone();
+                            self.wizard_data.todos[edit_index] =
+                                self.wizard_data.current_todo.clone();
                         } else {
                             // Fallback: add to end if index is invalid
-                            self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                            self.wizard_data
+                                .todos
+                                .push(self.wizard_data.current_todo.clone());
                         }
                         self.wizard_data.editing_todo_index = None;
                     } else {
                         // Add new TODO to the end
-                        self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                        self.wizard_data
+                            .todos
+                            .push(self.wizard_data.current_todo.clone());
                     }
                     self.wizard_data.current_todo.clear();
                     self.wizard_data.selected_todo_index = None;
@@ -394,7 +399,9 @@ impl App {
             KeyCode::Backspace => {
                 self.wizard_data.current_todo.pop();
                 // If we've cleared the input while editing, cancel the edit
-                if self.wizard_data.current_todo.is_empty() && self.wizard_data.editing_todo_index.is_some() {
+                if self.wizard_data.current_todo.is_empty()
+                    && self.wizard_data.editing_todo_index.is_some()
+                {
                     self.wizard_data.editing_todo_index = None;
                 }
             }
@@ -408,15 +415,20 @@ impl App {
                     if let Some(edit_index) = self.wizard_data.editing_todo_index {
                         // Replace the TODO at the original position
                         if edit_index < self.wizard_data.todos.len() {
-                            self.wizard_data.todos[edit_index] = self.wizard_data.current_todo.clone();
+                            self.wizard_data.todos[edit_index] =
+                                self.wizard_data.current_todo.clone();
                         } else {
                             // Fallback: add to end if index is invalid
-                            self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                            self.wizard_data
+                                .todos
+                                .push(self.wizard_data.current_todo.clone());
                         }
                         self.wizard_data.editing_todo_index = None;
                     } else {
                         // Add new TODO to the end
-                        self.wizard_data.todos.push(self.wizard_data.current_todo.clone());
+                        self.wizard_data
+                            .todos
+                            .push(self.wizard_data.current_todo.clone());
                     }
                     self.wizard_data.current_todo.clear();
                 }
