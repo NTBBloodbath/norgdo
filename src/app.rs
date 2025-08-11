@@ -1,4 +1,4 @@
-use crate::task::KanbanCategory;
+use crate::task::{KanbanCategory, TodoState};
 use crate::task_manager::TaskManager;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -12,6 +12,7 @@ pub enum AppMode {
     CreateTaskWizard(WizardStep),
     Search,
     Help,
+    TodoStateSelect { task_id: String, todo_index: usize },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +52,7 @@ pub struct App {
     pub help_scroll_offset: u16,    // For scrolling help content
     pub help_scrollbar_state: ScrollbarState, // For help scrollbar widget
     pub wizard_data: TaskWizardData, // For task creation wizard
+    pub todo_state_list_state: ListState, // For selecting TODO states
 }
 
 impl App {
@@ -81,6 +83,7 @@ impl App {
                 selected_todo_index: None,
                 editing_todo_index: None,
             },
+            todo_state_list_state: ListState::default(),
         })
     }
 
@@ -105,6 +108,14 @@ impl App {
                 }
                 AppMode::Search => self.handle_search_input(key.code)?,
                 AppMode::Help => self.handle_help_input(key.code)?,
+                AppMode::TodoStateSelect {
+                    task_id,
+                    todo_index,
+                } => {
+                    let task_id = task_id.clone();
+                    let todo_index = *todo_index;
+                    self.handle_todo_state_select_input(key.code, &task_id, todo_index)?;
+                }
             }
         }
         Ok(())
@@ -193,10 +204,14 @@ impl App {
                 }
             }
             KeyCode::Char(' ') => {
-                // Toggle todo state
+                // Open TODO state selection dialog
                 if let Some(selected_index) = self.todo_list_state.selected() {
-                    self.task_manager
-                        .toggle_todo_state(task_id, selected_index)?;
+                    self.mode = AppMode::TodoStateSelect {
+                        task_id: task_id.to_string(),
+                        todo_index: selected_index,
+                    };
+                    // Reset state selection
+                    self.todo_state_list_state.select(Some(0));
                 }
             }
             KeyCode::Char('?') => {
@@ -540,5 +555,58 @@ impl App {
             _ => {}
         }
         Ok(())
+    }
+
+    fn handle_todo_state_select_input(
+        &mut self,
+        key_code: KeyCode,
+        task_id: &str,
+        todo_index: usize,
+    ) -> Result<()> {
+        match key_code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                // Cancel and return to task detail
+                self.mode = AppMode::TaskDetail(task_id.to_string());
+            }
+            KeyCode::Up => {
+                // Move up in state list
+                let current = self.todo_state_list_state.selected().unwrap_or(0);
+                let new_index = if current > 0 { current - 1 } else { 7 }; // 8 total states, wrap around
+                self.todo_state_list_state.select(Some(new_index));
+            }
+            KeyCode::Down => {
+                // Move down in state list
+                let current = self.todo_state_list_state.selected().unwrap_or(0);
+                let new_index = if current < 7 { current + 1 } else { 0 }; // 8 total states, wrap around
+                self.todo_state_list_state.select(Some(new_index));
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                // Apply selected state
+                if let Some(selected_state_index) = self.todo_state_list_state.selected() {
+                    let states = Self::get_all_todo_states();
+                    if let Some(new_state) = states.get(selected_state_index) {
+                        self.task_manager
+                            .set_todo_state(task_id, todo_index, new_state.clone())?;
+                    }
+                }
+                // Return to task detail
+                self.mode = AppMode::TaskDetail(task_id.to_string());
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn get_all_todo_states() -> Vec<TodoState> {
+        vec![
+            TodoState::Undone,
+            TodoState::Pending,
+            TodoState::Done,
+            TodoState::Urgent,
+            TodoState::Uncertain,
+            TodoState::OnHold,
+            TodoState::Cancelled,
+            TodoState::Recurring,
+        ]
     }
 }

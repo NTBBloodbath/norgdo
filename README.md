@@ -56,9 +56,18 @@ cargo run
 ### Task Detail View Navigation
 
 - **↑↓** Navigate between TODO items within a task
-- **Space** Toggle TODO state (cycles through Undone → Pending → Done)
+- **Space** Open TODO state selection dialog (choose from all 8 states)
 - **s** Save changes to the task file
 - **Esc/q** Return to main dashboard
+
+### TODO State Selection
+
+Press `Space` on any TODO item to open an interactive state selection dialog:
+- **↑↓** Navigate through all available states
+- **Enter/Space** Apply the selected state
+- **Esc/q** Cancel selection
+
+Choose from any of the 8 Norg TODO states with visual indicators and descriptions.
 
 ### Task File Format
 

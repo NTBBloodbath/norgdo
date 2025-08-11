@@ -21,6 +21,14 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         }
         AppMode::Search => render_search(app, frame),
         AppMode::Help => render_help(app, frame),
+        AppMode::TodoStateSelect {
+            task_id,
+            todo_index,
+        } => {
+            let task_id = task_id.clone();
+            let todo_index = *todo_index;
+            render_todo_state_select(app, frame, &task_id, todo_index);
+        }
     }
 
     // Render error message if present
@@ -654,9 +662,14 @@ fn render_help(app: &mut App, frame: &mut Frame) {
         "",
         "TASK DETAIL VIEW:",
         "  Up/Down (↑ ↓)       Navigate between TODO items",
-        "  Space               Toggle TODO state (cycle through states)",
+        "  Space               Open TODO state selection dialog",
         "  s                   Save changes to file",
         "  Esc/q               Return to dashboard",
+        "",
+        "TODO STATE SELECTION:",
+        "  Up/Down (↑ ↓)       Navigate state options",
+        "  Enter/Space         Select state and apply",
+        "  Esc/q               Cancel state selection",
         "",
         "TODO STATES:",
         "   Undone            Task not started",
@@ -747,4 +760,145 @@ fn render_help(app: &mut App, frame: &mut Frame) {
         .thumb_symbol("█");
 
     frame.render_stateful_widget(scrollbar, scrollbar_area, &mut app.help_scrollbar_state);
+}
+
+fn render_todo_state_select(app: &mut App, frame: &mut Frame, task_id: &str, todo_index: usize) {
+    use crate::task::TodoState;
+
+    // Get the current TODO being edited
+    let current_todo = app
+        .task_manager
+        .get_tasks()
+        .iter()
+        .find(|t| t.id == task_id)
+        .and_then(|task| task.todos.get(todo_index));
+
+    let popup_area = centered_rect(50, 60, frame.area());
+    frame.render_widget(Clear, popup_area);
+
+    // Create chunks for title, current todo, states list, and help
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Title
+            Constraint::Length(3), // Current TODO info
+            Constraint::Min(0),    // States list
+            Constraint::Length(3), // Help
+        ])
+        .split(popup_area);
+
+    // Title
+    let title = Paragraph::new("Select TODO State")
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(Color::Cyan)),
+        );
+    frame.render_widget(title, chunks[0]);
+
+    // Current TODO info
+    let current_info = if let Some(todo) = current_todo {
+        format!("{} ({})", todo.text, todo.state.to_string())
+    } else {
+        "TODO not found".to_string()
+    };
+
+    let info_widget = Paragraph::new(current_info)
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("TODO Item"),
+        );
+    frame.render_widget(info_widget, chunks[1]);
+
+    // States list
+    let states = vec![
+        TodoState::Undone,
+        TodoState::Pending,
+        TodoState::Done,
+        TodoState::Urgent,
+        TodoState::Uncertain,
+        TodoState::OnHold,
+        TodoState::Cancelled,
+        TodoState::Recurring,
+    ];
+
+    let state_items: Vec<ListItem> = states
+        .iter()
+        .map(|state| {
+            let symbol = match state {
+                TodoState::Done => "",
+                TodoState::Cancelled => "",
+                TodoState::Pending => "",
+                TodoState::Urgent => "",
+                TodoState::OnHold => "",
+                TodoState::Uncertain => "",
+                TodoState::Recurring => "",
+                TodoState::Undone => "",
+            };
+
+            let color = match state {
+                TodoState::Done => Color::Green,
+                TodoState::Cancelled => Color::Red,
+                TodoState::Urgent => Color::Yellow,
+                TodoState::Pending => Color::Blue,
+                TodoState::Uncertain => Color::Magenta,
+                TodoState::OnHold => Color::Cyan,
+                TodoState::Recurring => Color::LightYellow,
+                TodoState::Undone => Color::White,
+            };
+
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    symbol,
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" "),
+                Span::styled(state.to_string(), Style::default().fg(color)),
+                Span::styled(
+                    format!(" ({})", state.to_norg_char()),
+                    Style::default().fg(Color::Gray),
+                ),
+            ]))
+        })
+        .collect();
+
+    let states_list = List::new(state_items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Select State"),
+        )
+        .highlight_spacing(ratatui::widgets::HighlightSpacing::Never)
+        .highlight_style(
+            Style::default()
+                .bg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("» ");
+
+    frame.render_stateful_widget(states_list, chunks[2], &mut app.todo_state_list_state);
+
+    // Help
+    let help = Paragraph::new("↑↓: Navigate | Enter/Space: Select | Esc/q: Cancel")
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Help"),
+        );
+    frame.render_widget(help, chunks[3]);
 }

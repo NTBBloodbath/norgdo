@@ -1,5 +1,5 @@
 use crate::parser::NorgParser;
-use crate::task::{KanbanCategory, Task};
+use crate::task::{KanbanCategory, Task, TodoState};
 use color_eyre::Result;
 use directories::ProjectDirs;
 use std::collections::HashMap;
@@ -181,6 +181,22 @@ impl TaskManager {
                 };
 
                 // Save the task file with updated TODO states
+                self.save_task(task_id)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn set_todo_state(
+        &mut self,
+        task_id: &str,
+        todo_index: usize,
+        new_state: TodoState,
+    ) -> Result<()> {
+        if let Some(task) = self.tasks.iter_mut().find(|t| t.id == task_id) {
+            if let Some(todo) = task.todos.get_mut(todo_index) {
+                todo.state = new_state;
+                // Save the task file with updated TODO state
                 self.save_task(task_id)?;
             }
         }
