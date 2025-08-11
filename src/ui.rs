@@ -1,5 +1,6 @@
 use crate::app::{App, AppMode, FocusedPane};
 use crate::task::{KanbanCategory, TodoState};
+use ratatui::widgets::BorderType;
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
@@ -40,7 +41,11 @@ fn render_dashboard(app: &mut App, frame: &mut Frame) {
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        );
     frame.render_widget(title, chunks[0]);
 
     // Main kanban board
@@ -90,7 +95,13 @@ fn render_dashboard(app: &mut App, frame: &mut Frame) {
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Help"));
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Help"),
+        );
     frame.render_widget(help, chunks[2]);
 }
 
@@ -157,8 +168,9 @@ fn render_single_kanban_column(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!("{} ({})", category.to_string(), tasks.len()))
-                .border_style(border_style),
+                .border_type(BorderType::Rounded)
+                .border_style(border_style)
+                .title(format!("{} ({})", category.to_string(), tasks.len())),
         )
         .highlight_spacing(ratatui::widgets::HighlightSpacing::Never)
         .highlight_style(Style::default().bg(Color::Black))
@@ -188,7 +200,12 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
         // Title
         let title = Paragraph::new(task.title.clone())
             .wrap(Wrap { trim: true })
-            .block(Block::default().borders(Borders::ALL).title("Task"));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title("Task"),
+            );
         frame.render_widget(title, chunks[0]);
 
         // Description
@@ -197,9 +214,12 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
         } else {
             task.description.clone()
         };
-        let desc_widget = Paragraph::new(description)
-            .wrap(Wrap { trim: true })
-            .block(Block::default().borders(Borders::ALL).title("Description"));
+        let desc_widget = Paragraph::new(description).wrap(Wrap { trim: true }).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Description"),
+        );
         frame.render_widget(desc_widget, chunks[1]);
 
         // Todos
@@ -247,6 +267,7 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
                     .title(format!("Todo Items ({})", task.todos.len())),
             )
             .highlight_spacing(ratatui::widgets::HighlightSpacing::Never)
@@ -260,7 +281,13 @@ fn render_task_detail(app: &mut App, frame: &mut Frame, task_id: &str) {
         )
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Help"));
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("Help"),
+        );
         frame.render_widget(help, chunks[3]);
     }
 }
@@ -282,11 +309,19 @@ fn render_create_task(app: &mut App, frame: &mut Frame) {
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        );
     frame.render_widget(title, chunks[0]);
 
-    let input = Paragraph::new(app.new_task_title.as_str())
-        .block(Block::default().borders(Borders::ALL).title("Task Title"));
+    let input = Paragraph::new(app.new_task_title.as_str()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("Task Title"),
+    );
     frame.render_widget(input, chunks[1]);
 
     let help = Paragraph::new("Type task title and press Enter to create, Esc to cancel")
@@ -313,11 +348,19 @@ fn render_search(app: &mut App, frame: &mut Frame) {
                 .add_modifier(Modifier::BOLD),
         )
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded),
+        );
     frame.render_widget(title, chunks[0]);
 
-    let input = Paragraph::new(app.search_query.as_str())
-        .block(Block::default().borders(Borders::ALL).title("Search Query"));
+    let input = Paragraph::new(app.search_query.as_str()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("Search Query"),
+    );
     frame.render_widget(input, chunks[1]);
 
     // Show search results
@@ -338,6 +381,7 @@ fn render_search(app: &mut App, frame: &mut Frame) {
     let results_list = List::new(result_items).block(
         Block::default()
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .title(format!("Results ({})", search_results.len())),
     );
     frame.render_widget(results_list, chunks[2]);
@@ -355,8 +399,9 @@ fn render_error_popup(frame: &mut Frame, error: &str) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Error")
-                .border_style(Style::default().fg(Color::Red)),
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(Color::Red))
+                .title("Error"),
         );
 
     frame.render_widget(error_widget, popup_area);
