@@ -38,6 +38,10 @@ cargo run
 
 ## Usage
 
+> [!IMPORTANT]
+>
+> Norgdo requires nerd fonts to display the TODO icons!
+
 ### Basic Navigation
 
 - **←→** Switch between kanban columns (Yet to be Done, In Progress, Completed)
